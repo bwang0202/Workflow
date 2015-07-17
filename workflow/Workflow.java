@@ -4,14 +4,10 @@ import java.io.*;
 import java.util.*;
 
 public class Workflow{
-    
-    private static int SUBARRAYSIZE = 1000000;
-    private int ascendingCounter = 1;
-    private String ascending = "ascending";
+    private int counter = 1;
     private Set<String> fileNames = new HashSet<String>();
     private Set<String> dFileNames = new HashSet<String>();
-	private String descending = "descending";
-	private int k = 2;
+	private int k = (new Random()).nextInt();
 	private Sorter mySorter = new Sorter();
 	private FastSorter myFastSorter = new FastSorter();
 	private long mergeSortTime = 0;
@@ -25,8 +21,8 @@ public class Workflow{
 	 * @throws Exception
 	 */
 	private void parellelTask(String string) throws Exception {
-		byte[] bytes = new byte[SUBARRAYSIZE];
-        byte[] helper = new byte[SUBARRAYSIZE];
+		byte[] bytes = new byte[CommonDefs.SUBARRAY_SIZE];
+        byte[] helper = new byte[CommonDefs.SUBARRAY_SIZE];
         long startTime;
         long stopTime;
         long totalTime = 0;
@@ -36,28 +32,28 @@ public class Workflow{
         //while the subarray is in memory
         //Also compute multiplyByK result while the subarray is in memory
         BufferedInputStream bis = new BufferedInputStream(new FileInputStream(string));
-        ascendingCounter = 1;
+        counter = 1;
         fileNames.clear();
         dFileNames.clear();
         int totalLen = (int) (new File(string)).length();
-        int len = SUBARRAYSIZE;
+        int len = CommonDefs.SUBARRAY_SIZE;
         int nRead;
         byte[] tempBytes = new byte[4];
-        BufferedOutputStream mbk = new BufferedOutputStream(new FileOutputStream("multiplyByK"));
+        BufferedOutputStream mbk = new BufferedOutputStream(new FileOutputStream(CommonDefs.MULTIPLY_RESULT));
         while (totalLen > 0) {
-        	if (totalLen < SUBARRAYSIZE) len = totalLen;
+        	if (totalLen < CommonDefs.SUBARRAY_SIZE) len = totalLen;
         	nRead = bis.read(bytes, 0, len);
         	if (nRead % 4 != 0) throw new RuntimeException("number of bytes read isn't multiple of four during parellelTask");
         	totalLen -= nRead;
         	//compute multiplyByK and output the result
         	multiplyHelper(mbk, bytes, nRead, 1);
-        	myFastSorter.mergeSort(bytes, helper, 0, len - 1, 1);
+        	myFastSorter.mergeSortFast(bytes, helper, 0, len - 1, 1);
         	//bytes contains integers in ascending order, sequentially write bytes to both "ascending" and "descending" files
-        	BufferedOutputStream ascendingBos = new BufferedOutputStream(new FileOutputStream(ascending + ascendingCounter));
-        	BufferedOutputStream descendingBos = new BufferedOutputStream(new FileOutputStream(descending + ascendingCounter));
+        	BufferedOutputStream ascendingBos = new BufferedOutputStream(new FileOutputStream(CommonDefs.ASC_TEMP_PREFIX + counter));
+        	BufferedOutputStream descendingBos = new BufferedOutputStream(new FileOutputStream(CommonDefs.DESC_TEMP_PREFIX + counter));
         	ascendingBos.write(bytes, 0, nRead);
         	ascendingBos.close();
-        	fileNames.add(ascending + ascendingCounter);
+        	fileNames.add(CommonDefs.ASC_TEMP_PREFIX + counter);
         	for (int i = nRead - 4; i >= 0; i -= 4) {
         		tempBytes[0] = bytes[i];
         		tempBytes[1] = bytes[i+1];
@@ -66,35 +62,36 @@ public class Workflow{
         		descendingBos.write(tempBytes);
         	}
         	descendingBos.close();
-        	dFileNames.add(descending+ ascendingCounter);
+        	dFileNames.add(CommonDefs.DESC_TEMP_PREFIX+ counter);
         //	debugPrint(ascending + ascendingCounter);
         //	debugPrint(descending+ ascendingCounter);
-        	ascendingCounter++;
+        	counter++;
         }
         mbk.close();
        // debugPrint("multiplyByK");
         //step 2: use kWayMerge of FastSorter, in which de-duplication and divide by k are computed during the merge.
-        BufferedInputStream[] ascBiss = new BufferedInputStream[ascendingCounter - 1];
-        int idx = 0;
-        for (String filename : this.fileNames) {
-        	ascBiss[idx++] = new BufferedInputStream(new FileInputStream(filename));
-        }
-        myFastSorter.kWayMerge(ascBiss, "ascendingResult", 1);
-        (new Thread() {
+        Thread t = new Thread() {
         	public void run() {
         		try {
 	        		int idx = 0;
-	                BufferedInputStream[] descBiss = new BufferedInputStream[ascendingCounter - 1];
+	                BufferedInputStream[] descBiss = new BufferedInputStream[counter - 1];
 	                for (String filename : dFileNames) {
 	                	descBiss[idx++] = new BufferedInputStream(new FileInputStream(filename));
 	                }
-	                myFastSorter.kWayMerge(descBiss, "descendingResult", -1);
+	                myFastSorter.kWayMerge(descBiss, CommonDefs.DESCENDING_RESULT, -1);
         		} catch (Exception e) {
         			e.printStackTrace();
         		}
         	}
-        }).run();
-        
+        }; 
+        t.start();
+        BufferedInputStream[] ascBiss = new BufferedInputStream[counter - 1];
+        int idx = 0;
+        for (String filename : this.fileNames) {
+        	ascBiss[idx++] = new BufferedInputStream(new FileInputStream(filename));
+        }
+        myFastSorter.kWayMerge(ascBiss, CommonDefs.ASCENDING_RESULT, 1);
+        t.join();
         stopTime = System.currentTimeMillis();
         System.out.println("ParellelTask takes total " + (stopTime - startTime));
        // debugPrint("ascendingResult");
@@ -108,8 +105,8 @@ public class Workflow{
      * @param fileName
      */
     public void sequentialTask(String fileName) {
-    	byte[] bytes = new byte[SUBARRAYSIZE];
-        byte[] helper = new byte[SUBARRAYSIZE];
+    	byte[] bytes = new byte[CommonDefs.SUBARRAY_SIZE];
+        byte[] helper = new byte[CommonDefs.SUBARRAY_SIZE];
         long startTime;
         long stopTime;
         long totalTime = 0;
@@ -122,42 +119,42 @@ public class Workflow{
 	        while (totalLen > 0) {
 	       	 totalLen -= readSortSubarray(bufferedInputStream, bytes, helper, totalLen, 1); //1 means ascending, -1 means descending
 	        }
-	        BufferedInputStream[] biss = new BufferedInputStream[ascendingCounter - 1];
+	        BufferedInputStream[] biss = new BufferedInputStream[counter - 1];
 	        int idx = 0;
 	        for (String filename : this.fileNames) {
 	        	//debugPrint(filename);
 	        	biss[idx++] = new BufferedInputStream(new FileInputStream(filename));
 	        }
-	        mySorter.kWayMerge(biss, "ascendingResult", 1); //1 means ascending, -1 means descending
+	        mySorter.kWayMerge(biss, CommonDefs.ASCENDING_RESULT, 1); //1 means ascending, -1 means descending
 	        stopTime = System.currentTimeMillis();
 	        totalTime += stopTime - startTime;
 	        System.out.println("task 1 takes " + (stopTime - startTime) + " \n");
 	        //debugPrint("ascendingResult");
 	        //task 2: sort in descending order
 	        startTime = System.currentTimeMillis();
-	        ascendingCounter = 1;
+	        counter = 1;
 	        fileNames.clear();
 	        totalLen = (int)(new File(fileName)).length();
 	        bufferedInputStream = new BufferedInputStream(new FileInputStream(fileName)); //reset 
 	        while (totalLen > 0) {
 	       	 totalLen -= readSortSubarray(bufferedInputStream, bytes, helper, totalLen, -1); //1 means ascending, -1 means descending
 	        }
-	        biss = new BufferedInputStream[ascendingCounter - 1];
+	        biss = new BufferedInputStream[counter - 1];
 	        idx = 0;
 	        for (String filename : this.fileNames) {
 	        	//debugPrint(filename);
 	        	biss[idx++] = new BufferedInputStream(new FileInputStream(filename));
 	        }
-	        mySorter.kWayMerge(biss, "descendingResult", -1); //1 means ascending, -1 means descending
+	        mySorter.kWayMerge(biss, CommonDefs.DESCENDING_RESULT, -1); //1 means ascending, -1 means descending
 	        stopTime = System.currentTimeMillis();
 	        totalTime += stopTime - startTime;
 	        System.out.println("task 2 takes " + (stopTime - startTime) + " \n");
 	       // debugPrint("descendingResult");
 	        //task 3:remove duplicates (by using result from task 1)
 	        startTime = System.currentTimeMillis();
-	        totalLen = (int)(new File("ascendingResult")).length();
-	        bufferedInputStream = new BufferedInputStream(new FileInputStream("ascendingResult"));
-	        BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(new FileOutputStream("deDuplicationResult"));
+	        totalLen = (int)(new File(CommonDefs.ASCENDING_RESULT)).length();
+	        bufferedInputStream = new BufferedInputStream(new FileInputStream(CommonDefs.ASCENDING_RESULT));
+	        BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(CommonDefs.DEDUPLICATION_RESULT));
 	        while (totalLen > 0) {
 	        	totalLen -= removeDuplicates(bufferedInputStream, bufferedOutputStream, bytes, totalLen);
 	        }
@@ -171,7 +168,7 @@ public class Workflow{
 	        startTime = System.currentTimeMillis();
 	        totalLen = (int)(new File(fileName)).length();
 	        bufferedInputStream = new BufferedInputStream(new FileInputStream(fileName));
-	        bufferedOutputStream = new BufferedOutputStream(new FileOutputStream("multiplyByKResult"));
+	        bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(CommonDefs.MULTIPLY_RESULT));
 	        while (totalLen > 0) {
 	       	 totalLen -= multiplyByK(bufferedInputStream, bufferedOutputStream, bytes, totalLen, 1);
 	        }
@@ -182,11 +179,11 @@ public class Workflow{
 	        //debugPrint("multiplyByKResult");
 	        //task 5: divide by k (dividing result from task 3)
 	        startTime = System.currentTimeMillis();
-	        totalLen = (int)(new File("deDuplicationResult")).length();
-	        bufferedInputStream = new BufferedInputStream(new FileInputStream("deDuplicationResult"));
-	        bufferedOutputStream = new BufferedOutputStream(new FileOutputStream("divideByKResult"));
+	        totalLen = (int)(new File(CommonDefs.DEDUPLICATION_RESULT)).length();
+	        bufferedInputStream = new BufferedInputStream(new FileInputStream(CommonDefs.DEDUPLICATION_RESULT));
+	        bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(CommonDefs.DIVIDE_RESULT));
 	        while (totalLen > 0) {
-	       	 totalLen -= multiplyByK(bufferedInputStream, bufferedOutputStream, bytes, totalLen, -1);
+	        	totalLen -= multiplyByK(bufferedInputStream, bufferedOutputStream, bytes, totalLen, -1);
 	        }
 	        bufferedOutputStream.close();
 	        stopTime = System.currentTimeMillis();
@@ -212,7 +209,7 @@ public class Workflow{
     private int multiplyByK(BufferedInputStream bufferedInputStream,
 			BufferedOutputStream bufferedOutputStream, byte[] bytes,
 			int totalLen, int multiply) throws IOException, RuntimeException {
-    	int len = totalLen < SUBARRAYSIZE ? totalLen : SUBARRAYSIZE;
+    	int len = totalLen < CommonDefs.SUBARRAY_SIZE ? totalLen : CommonDefs.SUBARRAY_SIZE;
 		int nRead = bufferedInputStream.read(bytes, 0, len); //normally should be len
 		if (nRead % 4 != 0) throw new RuntimeException("number of bytes read during multiplyByK is not multiple of four");
 		multiplyHelper(bufferedOutputStream, bytes, nRead, multiply);
@@ -259,7 +256,7 @@ public class Workflow{
     private int removeDuplicates(BufferedInputStream bufferedInputStream,
 			BufferedOutputStream bufferedOutputStream, byte[] bytes,
 			int totalLen) throws IOException, RuntimeException {
-		int len = totalLen < SUBARRAYSIZE ? totalLen : SUBARRAYSIZE;
+		int len = totalLen < CommonDefs.SUBARRAY_SIZE ? totalLen : CommonDefs.SUBARRAY_SIZE;
 		int nRead = bufferedInputStream.read(bytes, 0, len); //normally should be len
 		if (this.prev == null) {
 			prev = new byte[4];
@@ -292,7 +289,7 @@ public class Workflow{
      * @throws IOException
      */
     private int readSortSubarray(BufferedInputStream f, byte[] bytes, byte[] helper, int remainingBytes, int isAscending) throws IOException{
-        int len = remainingBytes > SUBARRAYSIZE ? SUBARRAYSIZE : remainingBytes;
+        int len = remainingBytes > CommonDefs.SUBARRAY_SIZE ? CommonDefs.SUBARRAY_SIZE : remainingBytes;
         int nRead=f.read(bytes, 0, len);
         long startTime = System.currentTimeMillis();
         mySorter.mergeSort(bytes, helper, 0, len - 1, isAscending);
@@ -300,9 +297,9 @@ public class Workflow{
         mergeSortTime += endTime - startTime;
         String newfileName;
         if (isAscending > 0) {
-        	newfileName = ascending + (ascendingCounter++);
+        	newfileName = CommonDefs.ASC_TEMP_PREFIX + (counter++);
         } else {
-        	newfileName = descending + (ascendingCounter++);
+        	newfileName = CommonDefs.DESC_TEMP_PREFIX + (counter++);
         }
         BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(newfileName));
         bos.write(bytes, 0, len);
@@ -313,7 +310,7 @@ public class Workflow{
 
      public static void main(String[] args){
          try {
-             byte[] outs = new byte[SUBARRAYSIZE * 2];
+             byte[] outs = new byte[CommonDefs.SUBARRAY_SIZE * 12];
              outs[0] = 1;
              outs[1] = 2;
              outs[8] = 8;
@@ -341,7 +338,7 @@ public class Workflow{
       * @param fileName
      * @throws FileNotFoundException 
       */
-     @SuppressWarnings({ "unused", "resource" })
+	@SuppressWarnings("unused")
 	private void debugPrint(String fileName) throws Exception {
     	 BufferedInputStream bis = new BufferedInputStream(new FileInputStream(fileName));
     	 int totalLen = (int)(new File(fileName)).length();

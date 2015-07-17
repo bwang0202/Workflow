@@ -29,7 +29,7 @@ public class Sorter {
      * @param end
      * @param ascending
      */
-    private void merge(byte[] bytes, byte[] helper, int start, int mid, int end, int ascending) {
+    protected void merge(byte[] bytes, byte[] helper, int start, int mid, int end, int ascending) {
         for (int i = start; i <= end; i++) {
             helper[i] = bytes[i];
         }

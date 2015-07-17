@@ -9,14 +9,41 @@ import java.util.PriorityQueue;
 
 public class FastSorter extends Sorter{
 	
+	/**
+     * Sort bytes between [0, end] in place, treat every 4 bytes as one integer
+     */
+    public void mergeSortFast(byte[] bytes, byte[] helper, int start, int end, int ascending) throws RuntimeException{
+        if ((end - start + 1) % 4 != 0) {
+            throw new RuntimeException("end and start not mutiple of four");
+        }
+        if (end - start == 3) return;
+        int left = start/4;
+        int right = (end - 3)/4;
+        int mid = left + (right - left)/2;
+        Thread t = new Thread(){
+        	public void run(){
+                mergeSort(bytes, helper, start, mid * 4 + 3, ascending);
+        	}
+        };
+        t.start();
+        mergeSort(bytes, helper, mid * 4 + 4, end, ascending);
+        try {
+			t.join();
+	        merge(bytes, helper, start, mid * 4 + 4, end, ascending);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+			return;
+		}
+    }
+	
 	public void kWayMerge(BufferedInputStream[] biss, String string, int ascending) throws IOException {
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(string));
 		BufferedOutputStream dedupOut = null;
 		BufferedOutputStream divideByKOut = null;
 		byte[] prev = null;
 		if (ascending > 0) {
-			dedupOut = new BufferedOutputStream(new FileOutputStream("deDuplicationResult"));
-			divideByKOut = new BufferedOutputStream(new FileOutputStream("divideByKResult"));
+			dedupOut = new BufferedOutputStream(new FileOutputStream(CommonDefs.DEDUPLICATION_RESULT));
+			divideByKOut = new BufferedOutputStream(new FileOutputStream(CommonDefs.DIVIDE_RESULT));
 		}
 		PriorityQueue<SorterElement> heap = new PriorityQueue<SorterElement>(biss.length, new Comparator<SorterElement>(){
 			@Override
