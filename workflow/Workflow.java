@@ -2,22 +2,48 @@ package workflow;
 
 import java.io.*;
 import java.util.*;
-
+/**
+ * Workflow, computes five tasks sequentially then in-parellel.
+ * Print out both results for comparison.
+ * @author Bojun Wang
+ *
+ */
 public class Workflow{
+	/**
+	 * Count temporary subarray file.
+	 */
     private int counter = 1;
-    private Set<String> fileNames = new HashSet<String>();
-    private Set<String> dFileNames = new HashSet<String>();
-	private int k = (new Random()).nextInt();
+    /**
+     * contains all temporary file names for storing ascending subarray
+     */
+    private Set<String> ascFileNames = new HashSet<String>();
+    /**
+     * contains all temporary file names for storing descending subarray
+     */
+    private Set<String> descFileNames = new HashSet<String>();
+    /**
+     * The random multiplier/divider.
+     */
+	private int k = 2;
+	/**
+	 * Sorter object providing sequential sort algorithm
+	 */
 	private Sorter mySorter = new Sorter();
+	/**
+	 * Sorter object providing in-parallel sorting and writing output algorithm
+	 */
 	private FastSorter myFastSorter = new FastSorter();
+	/**
+	 * testing-used variable to compute total time spent on the MergeSort algorithm
+	 */
 	private long mergeSortTime = 0;
 	/**
 	 * 4-byte array for de-duplication in task 3
 	 */
 	private byte[] prev = null;
 	/**
-	 * 
-	 * @param string
+	 * execute five tasks in parallel
+	 * @param string input file name
 	 * @throws Exception
 	 */
 	private void parellelTask(String string) throws Exception {
@@ -25,16 +51,15 @@ public class Workflow{
         byte[] helper = new byte[CommonDefs.SUBARRAY_SIZE];
         long startTime;
         long stopTime;
-        long totalTime = 0;
-      //  debugPrint(string);
+        //debugPrint(string);
         startTime = System.currentTimeMillis();
         //step 1: sequentially mergesort every subarray, and write to "ascending" and "descending" files 
         //while the subarray is in memory
         //Also compute multiplyByK result while the subarray is in memory
         BufferedInputStream bis = new BufferedInputStream(new FileInputStream(string));
         counter = 1;
-        fileNames.clear();
-        dFileNames.clear();
+        ascFileNames.clear();
+        descFileNames.clear();
         int totalLen = (int) (new File(string)).length();
         int len = CommonDefs.SUBARRAY_SIZE;
         int nRead;
@@ -45,15 +70,15 @@ public class Workflow{
         	nRead = bis.read(bytes, 0, len);
         	if (nRead % 4 != 0) throw new RuntimeException("number of bytes read isn't multiple of four during parellelTask");
         	totalLen -= nRead;
-        	//compute multiplyByK and output the result
+        	//compute multiply by K and output the result
         	multiplyHelper(mbk, bytes, nRead, 1);
         	myFastSorter.mergeSortFast(bytes, helper, 0, len - 1, 1);
-        	//bytes contains integers in ascending order, sequentially write bytes to both "ascending" and "descending" files
+        	//bytes contains integers in ascending order, sequentially write bytes to both "ascending" and "descending" temporary files
         	BufferedOutputStream ascendingBos = new BufferedOutputStream(new FileOutputStream(CommonDefs.ASC_TEMP_PREFIX + counter));
         	BufferedOutputStream descendingBos = new BufferedOutputStream(new FileOutputStream(CommonDefs.DESC_TEMP_PREFIX + counter));
         	ascendingBos.write(bytes, 0, nRead);
         	ascendingBos.close();
-        	fileNames.add(CommonDefs.ASC_TEMP_PREFIX + counter);
+        	ascFileNames.add(CommonDefs.ASC_TEMP_PREFIX + counter);
         	for (int i = nRead - 4; i >= 0; i -= 4) {
         		tempBytes[0] = bytes[i];
         		tempBytes[1] = bytes[i+1];
@@ -62,20 +87,19 @@ public class Workflow{
         		descendingBos.write(tempBytes);
         	}
         	descendingBos.close();
-        	dFileNames.add(CommonDefs.DESC_TEMP_PREFIX+ counter);
-        //	debugPrint(ascending + ascendingCounter);
-        //	debugPrint(descending+ ascendingCounter);
+        	descFileNames.add(CommonDefs.DESC_TEMP_PREFIX+ counter);
         	counter++;
         }
         mbk.close();
-       // debugPrint("multiplyByK");
+        bis.close();
+        //debugPrint(CommonDefs.MULTIPLY_RESULT);
         //step 2: use kWayMerge of FastSorter, in which de-duplication and divide by k are computed during the merge.
         Thread t = new Thread() {
         	public void run() {
         		try {
 	        		int idx = 0;
 	                BufferedInputStream[] descBiss = new BufferedInputStream[counter - 1];
-	                for (String filename : dFileNames) {
+	                for (String filename : descFileNames) {
 	                	descBiss[idx++] = new BufferedInputStream(new FileInputStream(filename));
 	                }
 	                myFastSorter.kWayMerge(descBiss, CommonDefs.DESCENDING_RESULT, -1);
@@ -87,18 +111,18 @@ public class Workflow{
         t.start();
         BufferedInputStream[] ascBiss = new BufferedInputStream[counter - 1];
         int idx = 0;
-        for (String filename : this.fileNames) {
+        for (String filename : this.ascFileNames) {
         	ascBiss[idx++] = new BufferedInputStream(new FileInputStream(filename));
         }
-        myFastSorter.kWayMerge(ascBiss, CommonDefs.ASCENDING_RESULT, 1);
+        myFastSorter.kWayMerge(ascBiss, CommonDefs.ASCENDING_RESULT, this.k);
         t.join();
         stopTime = System.currentTimeMillis();
         System.out.println("ParellelTask takes total " + (stopTime - startTime));
-       // debugPrint("ascendingResult");
-       // debugPrint("descendingResult");
-       // debugPrint("divideByKResult");
-       // debugPrint("deDuplicationResult");
-        
+ //       debugPrint(CommonDefs.ASCENDING_RESULT);
+ //       debugPrint(CommonDefs.DESCENDING_RESULT);
+ //       debugPrint(CommonDefs.DIVIDE_RESULT);
+ //       debugPrint(CommonDefs.DEDUPLICATION_RESULT);
+        //TODO: delete all temporary files
 	}
     /**
      * Sequentially execute five tasks and measure time cost.
@@ -111,7 +135,6 @@ public class Workflow{
         long stopTime;
         long totalTime = 0;
         try {
-        	//debugPrint(fileName);
         	//task 1: sort in ascending order
         	startTime = System.currentTimeMillis();
 	    	int totalLen = (int)(new File(fileName)).length();
@@ -121,8 +144,7 @@ public class Workflow{
 	        }
 	        BufferedInputStream[] biss = new BufferedInputStream[counter - 1];
 	        int idx = 0;
-	        for (String filename : this.fileNames) {
-	        	//debugPrint(filename);
+	        for (String filename : this.ascFileNames) {
 	        	biss[idx++] = new BufferedInputStream(new FileInputStream(filename));
 	        }
 	        mySorter.kWayMerge(biss, CommonDefs.ASCENDING_RESULT, 1); //1 means ascending, -1 means descending
@@ -130,10 +152,11 @@ public class Workflow{
 	        totalTime += stopTime - startTime;
 	        System.out.println("task 1 takes " + (stopTime - startTime) + " \n");
 	        //debugPrint("ascendingResult");
+	        
 	        //task 2: sort in descending order
 	        startTime = System.currentTimeMillis();
 	        counter = 1;
-	        fileNames.clear();
+	        ascFileNames.clear();
 	        totalLen = (int)(new File(fileName)).length();
 	        bufferedInputStream = new BufferedInputStream(new FileInputStream(fileName)); //reset 
 	        while (totalLen > 0) {
@@ -141,8 +164,7 @@ public class Workflow{
 	        }
 	        biss = new BufferedInputStream[counter - 1];
 	        idx = 0;
-	        for (String filename : this.fileNames) {
-	        	//debugPrint(filename);
+	        for (String filename : this.ascFileNames) {
 	        	biss[idx++] = new BufferedInputStream(new FileInputStream(filename));
 	        }
 	        mySorter.kWayMerge(biss, CommonDefs.DESCENDING_RESULT, -1); //1 means ascending, -1 means descending
@@ -150,6 +172,7 @@ public class Workflow{
 	        totalTime += stopTime - startTime;
 	        System.out.println("task 2 takes " + (stopTime - startTime) + " \n");
 	       // debugPrint("descendingResult");
+	        
 	        //task 3:remove duplicates (by using result from task 1)
 	        startTime = System.currentTimeMillis();
 	        totalLen = (int)(new File(CommonDefs.ASCENDING_RESULT)).length();
@@ -164,6 +187,7 @@ public class Workflow{
 	        totalTime += stopTime - startTime;
 	        System.out.println("task 3 takes " + (stopTime - startTime) + " \n");
 	        //debugPrint("deDuplicationResult");
+	        
 	        //task 4: multiple by k
 	        startTime = System.currentTimeMillis();
 	        totalLen = (int)(new File(fileName)).length();
@@ -177,6 +201,7 @@ public class Workflow{
 	        totalTime += stopTime - startTime;
 	        System.out.println("task 4 takes " + (stopTime - startTime) + " \n");
 	        //debugPrint("multiplyByKResult");
+	        
 	        //task 5: divide by k (dividing result from task 3)
 	        startTime = System.currentTimeMillis();
 	        totalLen = (int)(new File(CommonDefs.DEDUPLICATION_RESULT)).length();
@@ -190,18 +215,22 @@ public class Workflow{
 	        totalTime += stopTime - startTime;
 	        System.out.println("task 5 takes " + (stopTime - startTime) + " \n");
 	        System.out.println("SeqTask takes total " + totalTime + ", mergeSort time took " + mergeSortTime);
+	        
+	        //TODO: delete all temporary files
 	        //debugPrint("divideByKResult");
         } catch (Exception e) {
         	e.printStackTrace();
         }
     }
     /**
-     * 
-     * @param bufferedInputStream
-     * @param bufferedOutputStream
-     * @param bytes
-     * @param totalLen
-     * @param multiply
+     * Method only useful in sequential execution of task. This method is purely for measuring sequential task 
+     * execution time.
+     * Reads in SUBARRAY_SIZE of bytes into array, then multiply each integer by k
+     * @param bufferedInputStream input stream
+     * @param bufferedOutputStream output stream
+     * @param bytes byte array for reading in from input stream
+     * @param totalLen total length left unread in the input stream
+     * @param multiply 1 means multiply, -1 means divide
      * @return
      * @throws IOException
      * @throws RuntimeException
@@ -216,11 +245,12 @@ public class Workflow{
 		return nRead;
 	}
     /**
+     * For now, multiplying/dividing does not deal with integer overflow, preserving default behavior, could be problematic.
      * Multiply/divide each integer in bytes array by this.k, and write result to the given output stream.
-     * @param bufferedOutputStream
-     * @param bytes
-     * @param nRead
-     * @param multiply
+     * @param bufferedOutputStream output stream to write multiplied/divided integer to.
+     * @param bytes byte array containing all integers
+     * @param nRead number of byte meaningful in bytes array
+     * @param multiply multiply 1 means multiply, -1 means divide
      * @throws IOException 
      */
     private void multiplyHelper(BufferedOutputStream bufferedOutputStream, byte[] bytes, int nRead, int multiply) throws IOException {
@@ -245,12 +275,14 @@ public class Workflow{
 		}
     }
 	/**
-     * 
-     * @param bufferedInputStream
-     * @param bufferedOutputStream
-     * @param bytes
-     * @param totalLen
-     * @return
+	 * Method only useful in sequential execution of task. This method is purely for measuring sequential task 
+     * execution time.
+     * Remove duplicates from sorted byte array
+     * @param bufferedInputStream input stream to read bytes from
+     * @param bufferedOutputStream output array to write to
+     * @param bytes array to store sorted byte array
+     * @param totalLen total length left unread in input stream
+     * @return total number of bytes read in this call
      * @throws IOException
      */
     private int removeDuplicates(BufferedInputStream bufferedInputStream,
@@ -280,12 +312,12 @@ public class Workflow{
 
 	/**
      * read in subarray and sort it and store intermediate result in files
-     * @param f
-     * @param bytes
-     * @param helper
-     * @param remainingBytes
+     * @param f input stream to read bytes from
+     * @param bytes byte array for storing read bytes and for merge sort
+     * @param helper helper array for merge sort
+     * @param remainingBytes number of bytes unread from input array
      * @param isAscending convenience variable for reusing the code in "descending" case
-     * @return
+     * @return return total number of bytes read in this call 
      * @throws IOException
      */
     private int readSortSubarray(BufferedInputStream f, byte[] bytes, byte[] helper, int remainingBytes, int isAscending) throws IOException{
@@ -304,12 +336,13 @@ public class Workflow{
         BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(newfileName));
         bos.write(bytes, 0, len);
         bos.close();
-        this.fileNames.add(newfileName);
+        this.ascFileNames.add(newfileName);
         return nRead;
     }
 
      public static void main(String[] args){
          try {
+        	 //builds a test case for debugging
              byte[] outs = new byte[CommonDefs.SUBARRAY_SIZE * 12];
              outs[0] = 1;
              outs[1] = 2;
@@ -317,7 +350,7 @@ public class Workflow{
              outs[9] = 9;
              outs[16] = -1;
              outs[17] = 3;
-             File f = new File("newfile");
+             //File f = new File("newfile");
              FileOutputStream fileOuputStream = new FileOutputStream("newfile");
              fileOuputStream.write(outs);
              fileOuputStream.close();
@@ -335,10 +368,10 @@ public class Workflow{
      
 	/**
       * print a byte file as an array of integers
-      * @param fileName
+      * @param fileName name of the file to print
      * @throws FileNotFoundException 
       */
-	@SuppressWarnings("unused")
+	@SuppressWarnings({ "resource" })
 	private void debugPrint(String fileName) throws Exception {
     	 BufferedInputStream bis = new BufferedInputStream(new FileInputStream(fileName));
     	 int totalLen = (int)(new File(fileName)).length();

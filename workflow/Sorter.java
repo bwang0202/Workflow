@@ -3,7 +3,11 @@ package workflow;
 import java.io.*;
 import java.util.Comparator;
 import java.util.PriorityQueue;
-
+/**
+ * Sorter class providing sequential sorting algorithm
+ * @author Bojun Wang
+ *
+ */
 public class Sorter {
 	/**
      * Sort bytes between [0, end] in place, treat every 4 bytes as one integer
@@ -21,13 +25,13 @@ public class Sorter {
         merge(bytes, helper, start, mid * 4 + 4, end, ascending);
     }
     /**
-     * 
-     * @param bytes
-     * @param helper
-     * @param start
-     * @param mid
-     * @param end
-     * @param ascending
+     * merge step, of merge sort
+     * @param bytes byte array, interpreted as integer array
+     * @param helper helper array necessary for merging
+     * @param start start idx for first array
+     * @param mid   start idx for second array
+     * @param end   end idx for second array
+     * @param ascending 1 means ascending order, -1 means descending order
      */
     protected void merge(byte[] bytes, byte[] helper, int start, int mid, int end, int ascending) {
         for (int i = start; i <= end; i++) {
@@ -74,10 +78,10 @@ public class Sorter {
     	return 0;
     }
     /**
-     * 
-     * @param biss
-     * @param string
-     * @throws IOException
+     * Merge a number of arrays from file input streams.
+     * @param biss array of file input streams to read input integer from
+     * @param string file name to store merging result
+     * @throws IOException 
      */
 	public void kWayMerge(BufferedInputStream[] biss, String string, int ascending) throws IOException {
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(string));
@@ -103,17 +107,23 @@ public class Sorter {
 		}
 		out.close();
 	}
-    
+    /**
+     * parse a integer value and store its four bytes respectively
+     * @param value integer value to parse
+     * @param oneInt byte array to store the four bytes
+     */
 	protected void parseInt(int value, byte[] oneInt) {
-		//System.out.println("                   [parseInt]" + value);
 		oneInt[3] = (byte) (value & 0xFF);
 		oneInt[2] = (byte) ((value & 0xFF00) >>> 8);
 		oneInt[1] = (byte) ((value & 0xFF0000) >>> 16);
 		oneInt[0] = (byte) ((value & 0xFF000000) >>> 24);
-		//for (int i = 0; i < 4; i++) {
-		//	System.out.print(oneInt[i] + ", ");
-		//}
 	}
+	/**
+	 * Get next integer from input stream, where most significant bits are read in first
+	 * @param bufferedInputStream input stream
+	 * @param idx idx of the input stream in the whole input stream array
+	 * @return an element containing both the integer value and the input stream's idx. null if the end has been reached.
+	 */
 	protected SorterElement nextInt(BufferedInputStream bufferedInputStream, int idx) {
 		int result = 0, nextRead;
 		try {

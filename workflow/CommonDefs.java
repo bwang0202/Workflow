@@ -1,5 +1,9 @@
 package workflow;
-
+/**
+ * Definitions for avoiding typo and standardize computing result file names.
+ * @author Bojun Wang
+ *
+ */
 public interface CommonDefs {
 	/**
 	 * The file name for storing task 1's result
@@ -32,5 +36,5 @@ public interface CommonDefs {
 	/**
 	 * Subarray size
 	 */
-	public static final int SUBARRAY_SIZE = 1000000;
+	public static final int SUBARRAY_SIZE = 10000000;
 }

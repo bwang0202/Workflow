@@ -6,11 +6,17 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.PriorityQueue;
-
+/**
+ * a faster sorting object providing in-paralle execution of tasks and multi-thread merge sort.
+ * @author Bojun Wang
+ * 
+ *
+ */
 public class FastSorter extends Sorter{
 	
 	/**
      * Sort bytes between [0, end] in place, treat every 4 bytes as one integer
+     * Creates an additional thread to improve speed.
      */
     public void mergeSortFast(byte[] bytes, byte[] helper, int start, int end, int ascending) throws RuntimeException{
         if ((end - start + 1) % 4 != 0) {
@@ -20,7 +26,7 @@ public class FastSorter extends Sorter{
         int left = start/4;
         int right = (end - 3)/4;
         int mid = left + (right - left)/2;
-        Thread t = new Thread(){
+        Thread t = new Thread(){ //TODO: in general, should create more than 2 threads and see if it will be faster
         	public void run(){
                 mergeSort(bytes, helper, start, mid * 4 + 3, ascending);
         	}
@@ -35,7 +41,9 @@ public class FastSorter extends Sorter{
 			return;
 		}
     }
-	
+	/**
+	 * Override parent's method. In this case, task 3, 4, 5 are done while doing task 1 and 2.
+	 */
 	public void kWayMerge(BufferedInputStream[] biss, String string, int ascending) throws IOException {
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(string));
 		BufferedOutputStream dedupOut = null;
@@ -70,7 +78,7 @@ public class FastSorter extends Sorter{
 					prev[2] = oneInt[2];
 					prev[3] = oneInt[3];
 					dedupOut.write(oneInt);
-					parseInt(e.value/2, oneInt);
+					parseInt(e.value/ascending, oneInt); //ascending in this case contains value k
 					divideByKOut.write(oneInt);
 				}
 			}
