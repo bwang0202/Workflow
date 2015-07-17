@@ -8,7 +8,7 @@ public class Sorter {
 	/**
      * Sort bytes between [0, end] in place, treat every 4 bytes as one integer
      */
-    public static void mergeSort(byte[] bytes, byte[] helper, int start, int end, int ascending) throws RuntimeException{
+    public void mergeSort(byte[] bytes, byte[] helper, int start, int end, int ascending) throws RuntimeException{
         if ((end - start + 1) % 4 != 0) {
             throw new RuntimeException("end and start not mutiple of four");
         }
@@ -20,7 +20,16 @@ public class Sorter {
         mergeSort(bytes, helper, mid * 4 + 4, end, ascending);
         merge(bytes, helper, start, mid * 4 + 4, end, ascending);
     }
-    private static void merge(byte[] bytes, byte[] helper, int start, int mid, int end, int ascending) {
+    /**
+     * 
+     * @param bytes
+     * @param helper
+     * @param start
+     * @param mid
+     * @param end
+     * @param ascending
+     */
+    private void merge(byte[] bytes, byte[] helper, int start, int mid, int end, int ascending) {
         for (int i = start; i <= end; i++) {
             helper[i] = bytes[i];
         }
@@ -54,7 +63,7 @@ public class Sorter {
     /**
      * Compare bytes[i, i+3] against bytes[j, j+3] as integers
      */
-    private static int compare(byte[] bytes, int i, int j) {
+    private int compare(byte[] bytes, int i, int j) {
     	int a = bytes[i], b = bytes[j];
     	for (int k = 1; k < 4; k++) {
     		a = (a << 8) | bytes[i + k];
@@ -70,7 +79,7 @@ public class Sorter {
      * @param string
      * @throws IOException
      */
-	public static void kWayMerge(BufferedInputStream[] biss, String string, int ascending) throws IOException {
+	public void kWayMerge(BufferedInputStream[] biss, String string, int ascending) throws IOException {
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(string));
 		PriorityQueue<SorterElement> heap = new PriorityQueue<SorterElement>(biss.length, new Comparator<SorterElement>(){
 			@Override
@@ -95,7 +104,7 @@ public class Sorter {
 		out.close();
 	}
     
-	private static void parseInt(int value, byte[] oneInt) {
+	protected void parseInt(int value, byte[] oneInt) {
 		//System.out.println("                   [parseInt]" + value);
 		oneInt[3] = (byte) (value & 0xFF);
 		oneInt[2] = (byte) ((value & 0xFF00) >>> 8);
@@ -105,7 +114,7 @@ public class Sorter {
 		//	System.out.print(oneInt[i] + ", ");
 		//}
 	}
-	private static SorterElement nextInt(BufferedInputStream bufferedInputStream, int idx) {
+	protected SorterElement nextInt(BufferedInputStream bufferedInputStream, int idx) {
 		int result = 0, nextRead;
 		try {
 		for (int i = 0; i < 4; i++) {
